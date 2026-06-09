@@ -83,30 +83,26 @@ do
         wcode=$?
 
         if [ $wcode -eq 0 ]; then
-            # baretimestamp=$(cut -d"," -f9 "$out" | cut -d":" -f2 | grep -o -E '[0-9]+' | tail -n1)
-            fulltimestamp=$(cut -d"," -f9 "$out" | cut -d":" -f2 | tr -dc '0-9/')
-            if [ "$(hasfwslash "$fulltimestamp")" = "no" ]; then
-                echo "==x= pre.sh: $i filetag at f8"
-                fulltimestamp=$(cut -d"," -f8 "$out" | cut -d":" -f2 | tr -dc '0-9/')
-            fi
-            echo "==x= pre.sh: $i ok $wcode; filetag? ${fulltimestamp}"
-            wget $wgetopts -q "${burl}/${fulltimestamp}/${codec}/${f2}" -O "${out2}"
-            wcode2=$?
-            if [ $wcode2 -eq 0 ]; then
-              echo "===x pre.sh: $i filetag ok $wcode2"
-              exit 0
-            else
-              echo "===x pre.sh: $i not ok $wcode2"
-              exit 1
-              rm ${out}
-              rm ${out2}
-            fi
-        else
-            # wget creates blank files on errs
-            rm ${out}
-            echo "==x= pre.sh: $i not ok $wcode"
-        fi
-    fi
+fulltimestamp=$(jq -r '.timestamp' "$out")
+
+if [ -z "$fulltimestamp" ] || [ "$fulltimestamp" = "null" ]; then
+  echo "===x pre.sh: $i timestamp missing in ${out}"
+  rm -f "${out}"
+else
+  echo "==x= pre.sh: $i ok $wcode; filetag? ${fulltimestamp}"
+  wget $wgetopts -q "${burl}/${fulltimestamp}/${codec}/${f2}" -O "${out2}"
+  wcode2=$?
+
+  if [ $wcode2 -eq 0 ]; then
+    echo "===x pre.sh: $i filetag ok $wcode2"
+    exit 0
+  else
+    echo "===x pre.sh: $i not ok $wcode2"
+    exit 1
+    rm ${out}
+    rm ${out2}
+  fi
+fi
 
     # see if the prev wk was latest
     wk=$((wk - 1))
