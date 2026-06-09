@@ -12,7 +12,7 @@ hasfwslash() {
     esac
 }
 
-burl="https://pub-2a74c0ec6f6842d0941ea4f1a8e3e20d.r2.dev/blocklists"
+burl="https://cfstore.ding-king.cf/blocklists"
 dir="bc"
 codec="u6"
 f="basicconfig.json"
