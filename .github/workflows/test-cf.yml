@@ -1,4 +1,4 @@
-name: ⛅ CF
+name: test CF
 on:
   # github.com/serverless-dns/blocklists/blob/6021f80f/.github/workflows/createUploadBlocklistFilter.yml#L4-L6
   # schedule:
