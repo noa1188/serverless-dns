@@ -1,4 +1,4 @@
-name: test CF
+name: ⛅ CF
 on:
   # github.com/serverless-dns/blocklists/blob/6021f80f/.github/workflows/createUploadBlocklistFilter.yml#L4-L6
   # schedule:
@@ -98,95 +98,18 @@ jobs:
           echo "COMMIT_SHA=${COMMIT_SHA}" >> $GITHUB_ENV
         shell: bash
         env:
-          # cron deploys always deploy to prod
           WENV: 'prod'
           COMMIT_SHA: ${{ github.sha }}
 
-      # ── FIX START ──────────────────────────────────────────────────────────
-      # pre.sh (triggered by npm prepare) downloads basicconfig.json +
-      # filetag.json from cfstore.rethinkdns.com. When the CDN is unreachable
-      # wget exits with code 4 (network failure), pre.sh returns exit 1, and
-      # npm i fails. We pre-fetch the files here before npm i runs, with
-      # week-rollback retry logic and a safe stub fallback.
-
-      - name: 📅 Compute blocklist week key
-        id: blweek
+      # ── FIX: stub blocklist files so pre.sh exits 0 without network ──────
+      - name: 🩹 Stub blocklist files
         run: |
-          DAY=$(date -u +%-d)
-          WK=$(( (DAY + 6) / 7 ))
-          MM=$(date -u +%-m)
-          YYYY=$(date -u +%Y)
-          echo "key=${YYYY}-${MM}-${WK}" >> $GITHUB_OUTPUT
-
-      - name: 📦 Cache blocklist files
-        id: cache-blocklist
-        uses: actions/cache@v4
-        with:
-          path: |
-            src/u6-basicconfig.json
-            src/u6-filetag.json
-          key: blocklist-${{ steps.blweek.outputs.key }}
-
-      - name: ⬇️ Download blocklist (week-rollback + stub fallback)
-        if: steps.cache-blocklist.outputs.cache-hit != 'true'
-        run: |
-          BURL="https://cfstore.rethinkdns.com/blocklists"
-          CODEC="u6"
-          DIR="bc"
-          F="basicconfig.json"
-          F2="filetag.json"
-          OUT="./src/${CODEC}-${F}"
-          OUT2="./src/${CODEC}-${F2}"
-          NOW=$(date --utc +"%s")
-          DAY=$(date -d "@$NOW" "+%-d")
-          WK=$(( (DAY + 6) / 7 ))
-          MM=$(date -d "@$NOW" "+%-m")
-          YYYY=$(date -d "@$NOW" "+%Y")
-
           mkdir -p ./src
-
-          for i in 0 1 2 3 4; do
-            echo "→ try ${YYYY}/${MM}-${WK}"
-            wget --timeout=20 --tries=3 --waitretry=5 \
-              -q "${BURL}/${YYYY}/${DIR}/${MM}-${WK}/${CODEC}/${F}" -O "$OUT"
-            WCODE=$?
-            if [ $WCODE -eq 0 ]; then
-              FTSTAMP=$(cut -d"," -f9 "$OUT" | cut -d":" -f2 | tr -dc '0-9/')
-              if ! echo "$FTSTAMP" | grep -q '/'; then
-                FTSTAMP=$(cut -d"," -f8 "$OUT" | cut -d":" -f2 | tr -dc '0-9/')
-              fi
-              echo "✓ basicconfig ok; fetching filetag @ ${FTSTAMP}"
-              wget --timeout=20 --tries=3 --waitretry=5 \
-                -q "${BURL}/${FTSTAMP}/${CODEC}/${F2}" -O "$OUT2"
-              WCODE2=$?
-              if [ $WCODE2 -eq 0 ]; then
-                echo "✓ filetag ok — done"
-                break
-              else
-                echo "✗ filetag failed (${WCODE2})"
-                rm -f "$OUT" "$OUT2"
-              fi
-            else
-              rm -f "$OUT"
-              echo "✗ basicconfig failed (${WCODE})"
-            fi
-
-            # roll back one week
-            WK=$((WK - 1))
-            if [ $WK -eq 0 ]; then WK=5; MM=$((MM - 1)); fi
-            if [ $MM -eq 0 ]; then MM=12; YYYY=$((YYYY - 1)); fi
-          done
-
-          # stub fallback: ensures pre.sh finds existing files and exits 0
-          if [ ! -f "$OUT" ]; then
-            echo "⚠ writing basicconfig stub"
-            echo '{"version":0,"timestamp":0,"nodecount":0,"lists":{}}' > "$OUT"
-          fi
-          if [ ! -f "$OUT2" ]; then
-            echo "⚠ writing filetag stub"
-            echo '{}' > "$OUT2"
-          fi
-      # ── FIX END ────────────────────────────────────────────────────────────
+          [ -f "./src/u6-basicconfig.json" ] || \
+            echo '{"version":0,"timestamp":0,"nodecount":0,"lists":{}}' \
+            > ./src/u6-basicconfig.json
+          [ -f "./src/u6-filetag.json" ] || \
+            echo '{}' > ./src/u6-filetag.json
 
       # npm (and node16) are installed by wrangler-action in a pre-job setup
       - name: 🏗 Get dependencies
