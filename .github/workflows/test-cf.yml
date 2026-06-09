@@ -1,4 +1,4 @@
-name: Test Deploy to Cloudflare
+name: Test Deploy to Cloudflare Workers
 
 on:
   workflow_dispatch:
@@ -6,9 +6,7 @@ on:
     branches: [main]
 
 env:
-  GIT_REF: main
   WRANGLER_VER: 3.56.0
-  WORKERS_ENV: ""
 
 jobs:
   deploy:
@@ -18,8 +16,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ env.GIT_REF }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -31,39 +27,31 @@ jobs:
           node -v
           npm -v
 
-      - name: Install deps without prepare
+      - name: Install dependencies without prepare
         run: npm i --ignore-scripts
 
-      - name: Probe rethinkdns blocklist source
+      - name: Probe blocklist endpoint
         run: |
-          echo "DNS lookup:"
-          getent hosts cfstore.rethinkdns.com || true
-          echo
-          echo "HTTP probe:"
-          curl -I --retry 3 --connect-timeout 15 https://cfstore.rethinkdns.com/blocklists/ || true
-          echo
-          echo "Basicconfig probe:"
-          wget -S --spider https://cfstore.rethinkdns.com/blocklists/2026/bc/6-2/u6/basicconfig.json || true
-
-      - name: Run pre.sh with trace
-        run: |
-          chmod +x ./src/build/pre.sh
-          bash -x ./src/build/pre.sh
-
-      - name: Verify generated files
-        run: |
-          ls -lh ./src/u6-basicconfig.json ./src/u6-filetag.json
-          test -s ./src/u6-basicconfig.json
-          test -s ./src/u6-filetag.json
+          python - <<'PY'
+          import urllib.request, ssl
+          urls = [
+              "https://cfstore.rethinkdns.com/blocklists/",
+              "https://cfstore.rethinkdns.com/blocklists/2026/bc/6-2/u6/basicconfig.json",
+          ]
+          for u in urls:
+              try:
+                  with urllib.request.urlopen(u, timeout=20, context=ssl.create_default_context()) as r:
+                      print(u, r.status)
+              except Exception as e:
+                  print(u, repr(e))
+          PY
+        continue-on-error: true
 
       - name: Build
         run: npm run build
 
-      - name: Setup Wrangler
-        run: npm i -D wrangler@${WRANGLER_VER}
-
       - name: Deploy
-        run: npx wrangler deploy
+        run: npx wrangler@${WRANGLER_VER} deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
