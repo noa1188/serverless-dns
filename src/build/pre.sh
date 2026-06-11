@@ -12,7 +12,7 @@ hasfwslash() {
     esac
 }
 
-burl="https://cfstore.rethinkdns.com/blocklists"
+burl="https://cfstore.ding-king.cf/blocklists"
 dir="bc"
 codec="u6"
 f="basicconfig.json"
